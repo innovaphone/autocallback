@@ -1,79 +1,114 @@
-<?xml version="1.0" encoding="utf-8" ?>
-<voicemail>
-  <!-- innovaphone Auto Call Back INCOMMING == innovaphone AG V10.00 KWA 2014 -->
-
- <function define="Transfer">
-	<pbx-fwd e164="$Dest" out-cause="$Mycause" barge-in="false"/>
-	<if cond="$Mycause">
-		<store-cookie root="" name="Default.txt" out="$Dest"/>  
-		<pbx-fwd e164="$Dest" out-cause="$Mycause" barge-in="false"/>
-        </if>
-	<pbx-disc/>
- </function>
- <function define="DefTrans">
-	<store-cookie root="" name="Default.txt" out="$Dest"/> 
-	<lib-strcat string="$Pin" string2="$Dest" out-string="$Dest" /> 
-	<pbx-fwd e164="$Dest" out-cause="$Mycause" barge-in="false"/>
-	<pbx-disc/>        
- </function>
- <function define="Really">
-	<store-cookie root="" name="Default.txt" out="$Dest"/> 
-	<lib-strcat string="$Pin" string2="$Dest" out-string="$Dest" /> 
-	<pbx-fwd e164="$Dest" out-cause="$Mycause" barge-in="false"/>
-	<pbx-disc/>        
- </function>
- <function define="Main">
-	<pbx-getcallinfo out-cgpn="$cgpn" out-cdpn="$cdpn" out-leg2="$leg2" />
-	<store-cookie root="" name="PrefixIN.txt" out="$Pin"/> 
-	<lib-strcat string="$Pin" string2="$cgpn" out-string="$Mycgpn" />
-	<pbx-prepcallinfo cgpn="$Mycgpn" />
-	<store-cookie root="" name="Default.txt" out="$Dest"/>  
-  	<store-getstat root="AutoRC/" name="$cgpn" out-mday="$mday" out-error="$error"/>
-        <if cond="$error">
-           <call name="DefTrans" />
-        </if>
-	<lib-strcat string="AutoRC/" string2="$cgpn" out-string="$cgDir" />
-	<store-get-msgcount root="$cgDir" out-count="$res"/>
-	<if notcond="$res">
-		<store-rmdir root="AutoRC/" name="$cgpn"/> 
-	        <call name="DefTrans" />
-        </if>
-	<store-getstat root="" name="NULL"  out-mday="$Jetztday" />
-	<switch var="$Jetztday">
-		<case not-equal="$mday">
-	  		<store-rmdir root="AutoRC/" name="$cgpn"/> 
-		        <call name="DefTrans" />		
-		</case>
-  	</switch>
-	<store-getnext root="$cgDir" out-handle="$handle" out-url="$url"/>
-	<store-split url="$url" out-path="$path" out-file="$Dest" out-cgpn="$mcp"/>
-	<store-cookie root="" name="$url" out="$Busy"/> 
-	<store-del url="$url"/>
-	<store-get-msgcount root="$cgDir" out-count="$res"/>
-	<if notcond="$res">
-		<store-rmdir root="AutoRC/" name="$cgpn"/> 
-        </if>
-	<if cond="$Busy">
-           <call name="Transfer" />
-        </if>
-	<event type="dtmf" block="false">
-		<pbx-getdtmfdigit out-dtmf="$dtmf" /> 
-		<switch var="$dtmf">
-			<case equal="#">
-  				<call name="Transfer" />
-			</case>
- 		 </switch>
-		<call name="DefTrans" />
-  	 </event>
-	<store-getstat root="" name="Track100.g711a" out-error="$error"/>
-	<if cond="$error">
-		<call name="Transfer" />
-        </if>
-	<store-get root="" name="Track100.$coder" out-url="$ctrl" /> 
-       	<pbx-prompt url="$ctrl" repeat="false"/> 
-	<store-get root="" name="silence.$coder" out-url="$ctrl" /> 
-       	<pbx-prompt url="$ctrl" sec="4" repeat="false"/>
-	<call name="DefTrans" />
- </function>
-</voicemail>
+<?xml version="1.0" encoding="utf-8" ?>
+<voicemail>
+  <!-- innovaphone Auto Call Back INCOMING with DDI(Direct Dial In) == innovaphone AG V10.00 KWA 2014 -->
+
+<!-- Transfers the call to the stored destination (or to default destination if transfer fails) -->
+
+ <function define="Transfer">
+	<pbx-fwd e164="$Dest" out-cause="$Mycause" barge-in="false"/>
+	<if cond="$Mycause">
+		<store-cookie root="" name="Default.txt" out="$Dest"/>
+		<pbx-fwd e164="$Dest" out-cause="$Mycause" barge-in="false"/>
+    </if>
+	<pbx-disc/>
+ </function>
+ 
+<!-- Transfer to default destination defined inside Default.txt file -->
+
+ <function define="DefTrans">
+	<store-cookie root="" name="Default.txt" out="$Dest"/>
+<!--	<lib-strcat string="$Pin" string2="$Dest" out-string="$Dest" />   -->
+	<pbx-fwd e164="$Dest" out-cause="$Mycause" barge-in="false"/>
+	<pbx-disc/>     
+ </function>
+
+<!-- Transfers to DDI destination -->
+
+  <function define="DDI_Trans">
+	<pbx-fwd e164="$cdpn" out-cause="$Mycause" barge-in="false"/>
+	<pbx-disc/>     
+ </function>
+
+<!-- Verifies if the calling party composed a DDI number, if there is DDI the call is forwarded to that specific extension otherwise to the Default destination -->
+ <function define="Verify_DDI">
+ 	<pbx-finduser-e164 e164="$cdpn" out-cn="$DDI_user"/>
+ 		<switch var="$DDI_user">
+ 			<case equal="">
+ 				<assign out="$cdpn" value=""/>
+				<call name="DefTrans" />
+			</case>
+			<case not-equal="">
+				<call name="DDI_Trans" />
+			</case>
+ 		</switch>
+ </function>
+ 
+<!--  
+ <function define="Really">
+	<store-cookie root="" name="Default.txt" out="$Dest"/>
+	<lib-strcat string="$Pin" string2="$Dest" out-string="$Dest" />
+	<pbx-fwd e164="$Dest" out-cause="$Mycause" barge-in="false"/>
+	<pbx-disc/>     
+ </function>
+-->
+
+ <function define="Main">
+	<pbx-getcallinfo out-cgpn="$cgpn" out-cdpn="$cdpn" out-leg2="$leg2" />
+<!--	
+	<store-cookie root="" name="PrefixIN.txt" out="$Pin"/>
+	<lib-strcat string="$Pin" string2="$cgpn" out-string="$Mycgpn" />
+	<pbx-prepcallinfo cgpn="$Mycgpn"/>
+-->
+	<store-cookie root="" name="Default.txt" out="$Dest"/>
+  	<store-getstat root="AutoRC/" name="$cgpn" out-mday="$mday" out-error="$error"/>
+        <if cond="$error">
+        	<call name="Verify_DDI" />
+        </if>
+	<lib-strcat string="AutoRC/" string2="$cgpn" out-string="$cgDir" />
+	<store-get-msgcount root="$cgDir" out-count="$res"/>
+	<if notcond="$res">
+		<store-rmdir root="AutoRC/" name="$cgpn"/>
+        	<call name="Verify_DDI" />
+        </if>
+	<store-getstat root="" name="NULL"  out-mday="$Jetztday" />
+	<switch var="$Jetztday">
+		<case not-equal="$mday">
+  		<store-rmdir root="AutoRC/" name="$cgpn"/>
+        	<call name="Verify_DDI" />
+		</case>
+  	</switch>
+	<store-getnext root="$cgDir" out-handle="$handle" out-url="$url"/>
+	<store-split url="$url" out-path="$path" out-file="$Dest" out-cgpn="$mcp"/>
+<!--	<store-cookie root="" name="$url" out="$Busy"/> -->
+	<store-del url="$url"/>
+	<store-get-msgcount root="$cgDir" out-count="$res"/>
+	<if notcond="$res">
+		<store-rmdir root="AutoRC/" name="$cgpn"/>
+    </if>
+
+<!--	
+		<if cond="$Busy">
+           <call name="Transfer" />
+        </if> 
+-->
+	<event type="dtmf" block="false">
+		<pbx-getdtmfdigit out-dtmf="$dtmf" />
+		<switch var="$dtmf">
+			<case equal="#">
+  				<call name="Transfer" />
+			</case>
+ 		 </switch>
+        	<call name="Verify_DDI" />
+  	 </event>
+	<store-getstat root="" name="Track100.g711a" out-error="$error"/>
+	<if cond="$error">
+		<call name="Transfer" />
+    </if>
+	<store-get root="" name="Track100.$coder" out-url="$ctrl" />
+       	<pbx-prompt url="$ctrl" repeat="false"/>
+	<store-get root="" name="silence.$coder" out-url="$ctrl" />
+       	<pbx-prompt url="$ctrl" sec="4" repeat="false"/>
+        	<call name="Verify_DDI" />
+ </function>
+</voicemail>
 <!-- Auto Call-Back wiki-src/xml/AutoCallBack 1,0,0,0 (C) innovaphone AG 2010-2014 -->
